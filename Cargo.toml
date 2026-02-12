@@ -15,9 +15,9 @@ windows = { version = "0.62.2" , features = [
 ]}
 
 [profile.release]
-opt-level = "z"        # or "s" (sometimes faster, slightly bigger)
+opt-level = "z"
 lto = true
 codegen-units = 1
-strip = "symbols"      # requires relatively recent Rust; Rust 1.91 supports it
+strip = "symbols"
 panic = "abort"
 debug = false
