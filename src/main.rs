@@ -132,17 +132,12 @@ impl eframe::App for AutoclickerApp {
 }
 
 fn autoclick_once(cps: u32) {
-    let delay_ms = (1000u64 / cps.max(1) as u64).max(1);
-    let delay = Duration::from_millis(delay_ms);
+    let delay_ms = Duration::from_millis(1000u64 / cps.max(1) as u64).max(Duration::from_millis(1));
 
     let _ = simulate(&EventType::ButtonPress(Button::Left));
     let _ = simulate(&EventType::ButtonRelease(Button::Left));
-    thread::sleep(delay);
+    thread::sleep(delay_ms);
 }
-
-/* ===========================
-   ADMIN ELEVATION SECTION
-   =========================== */
 
 fn to_wide(s: &str) -> Vec<u16> {
     OsStr::new(s)
@@ -152,11 +147,10 @@ fn to_wide(s: &str) -> Vec<u16> {
 }
 
 fn relaunch_as_admin() {
-    let exe = env::current_exe().unwrap();
-    let exe_str = exe.to_str().unwrap();
+    let exe_str = env::current_exe().unwrap().to_string_lossy().into_owned();
 
     let operation = to_wide("runas");
-    let file = to_wide(exe_str);
+    let file = to_wide(&*exe_str);
 
     unsafe {
         ShellExecuteW(
@@ -169,10 +163,6 @@ fn relaunch_as_admin() {
         );
     }
 }
-
-/* ===========================
-   MAIN
-   =========================== */
 
 fn main() -> Result<(), eframe::Error> {
     // Auto elevation
