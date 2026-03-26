@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <title>Golemian Autoclick</title>
+  </head>
+  <body>
+    <main class="app">
+      <header class="card hero">
+        <h1 class="app-title">Golemian Autoclick</h1>
+        <div class="status-row">
+          <div id="statusBadge" class="badge">State: -</div>
+          <span id="privilegeBadge" class="visually-hidden">Admin: no</span>
+        </div>
+      </header>
+
+      <section class="panel-grid">
+        <section class="card hotkeys">
+          <div class="section-head">
+            <h2>Hotkeys</h2>
+            <span class="section-pill">All keyboard keys</span>
+          </div>
+          <div class="hotkey-grid">
+            <div class="bind-row">
+              <div>
+                <p class="bind-title">Toggle autoclick</p>
+                <p id="toggleKey" class="bind-key">F4</p>
+              </div>
+              <button id="bindToggleBtn" class="secondary">Change</button>
+            </div>
+            <div class="bind-row">
+              <div>
+                <p class="bind-title">Inventory pause</p>
+                <p id="inventoryKey" class="bind-key">E</p>
+              </div>
+              <button id="bindInventoryBtn" class="secondary">Change</button>
+            </div>
+          </div>
+          <p id="bindHint" class="hint"></p>
+        </section>
+
+        <section class="card cps-card">
+          <div class="row">
+            <label for="cpsInput">Clicks per second</label>
+            <span id="cpsValue">13</span>
+          </div>
+          <input id="cpsInput" type="range" min="1" max="100" value="13" />
+          <small class="hint">Range: 1 to 100 CPS</small>
+
+          <div class="module-meta">
+            <div class="meta-item">
+              <span class="meta-label">Delay</span>
+              <span id="cpsDelay" class="meta-value">77 ms</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Toggle</span>
+              <span id="toggleMeta" class="meta-value">F4</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Inventory</span>
+              <span id="inventoryMeta" class="meta-value">E</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Build</span>
+              <span class="meta-value">3.0.0</span>
+            </div>
+          </div>
+
+          <div class="module-footer">
+            <small class="credits">Credits: R127</small>
+          </div>
+        </section>
+      </section>
+
+      <section class="card actions action-bar">
+        <button id="startBtn">Start</button>
+        <button id="stopBtn" class="secondary">Stop</button>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
+

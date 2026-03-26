@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  <title>Golemian Autoclick</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="card hero">
+      <h1>Golemian Autoclick</h1>
+      <p>Fast Tauri auto-clicker with customizable hotkeys.</p>
+      <div id="statusBadge" class="badge">State: -</div>
+    </header>
+
+    <section class="card">
+      <div class="row">
+        <label for="cpsInput">Clicks per second</label>
+        <span id="cpsValue">13</span>
+      </div>
+      <input id="cpsInput" type="range" min="1" max="100" value="13" />
+      <small class="hint">Range: 1 to 100 CPS</small>
+    </section>
+
+    <section class="card hotkeys">
+      <h2>Hotkeys</h2>
+      <div class="bind-row">
+        <div>
+          <p class="bind-title">Toggle autoclick</p>
+          <p id="toggleKey" class="bind-key">F4</p>
+        </div>
+        <button id="bindToggleBtn" class="secondary">Change</button>
+      </div>
+      <div class="bind-row">
+        <div>
+          <p class="bind-title">Inventory pause</p>
+          <p id="inventoryKey" class="bind-key">E</p>
+        </div>
+        <button id="bindInventoryBtn" class="secondary">Change</button>
+      </div>
+      <p id="bindHint" class="hint"></p>
+    </section>
+
+    <section class="card actions">
+      <button id="startBtn">Start</button>
+      <button id="stopBtn" class="secondary">Stop</button>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

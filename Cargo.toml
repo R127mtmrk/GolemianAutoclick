@@ -1,18 +1,6 @@
-[package]
-name = "GolemianAutoclick"
-version = "2.0.1"
-edition = "2021"
-
-[dependencies]
-eframe = { version = "0.33", default-features = false, features = ["glow", "default_fonts"] }
-rdev = "0.5"
-windows = { version = "0.62.2" , features = [
-    "Win32_Foundation",
-    "Win32_Security",
-    "Win32_System_Threading",
-    "Win32_UI_Shell",
-    "Win32_UI_WindowsAndMessaging"
-]}
+[workspace]
+members = ["src-tauri"]
+resolver = "2"
 
 [profile.release]
 opt-level = "z"
