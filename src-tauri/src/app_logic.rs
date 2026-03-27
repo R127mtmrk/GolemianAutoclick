@@ -53,7 +53,7 @@ pub(crate) fn default_notice(is_elevated: bool) -> String {
 /// Convertit un Virtual Key code en label lisible.
 pub(crate) fn key_to_label(key: HotKey) -> String {
     match key.0 {
-        0x08 => "Backspace", 0x09 => "Tab", 0x0D => "Enter", 0x1B => "Escape",
+        0x08 => "Backspace", 0x09 => "Tab", 0x0D => "Enter", 0x10 => "Shift", 0x11 => "Ctrl", 0x12 => "Alt", 0x1B => "Escape",
         0x20 => "Space", 0x21 => "Page Up", 0x22 => "Page Down", 0x23 => "End",
         0x24 => "Home", 0x25 => "Left Arrow", 0x26 => "Up Arrow", 0x27 => "Right Arrow",
         0x28 => "Down Arrow", 0x2C => "Print Screen", 0x2D => "Insert", 0x2E => "Delete",

@@ -269,6 +269,37 @@ fn begin_key_bind(
     get_state(shared)
 }
 
+#[tauri::command]
+fn set_key_bind(
+    target: String,
+    key_code: u32,
+    app: tauri::AppHandle,
+    shared: tauri::State<'_, AppShared>,
+) -> Result<UiState, String> {
+    if !(1..=255).contains(&key_code) {
+        return Err("Invalid key code".to_string());
+    }
+
+    {
+        let mut guard = shared
+            .inner
+            .lock()
+            .map_err(|_| "State unavailable".to_string())?;
+
+        let binding_target = match target.as_str() {
+            "inventory" => KeyBindingTarget::Inventory,
+            "toggle" => KeyBindingTarget::Toggle,
+            _ => return Err("Invalid bind target".to_string()),
+        };
+
+        guard.pending_bind = Some(binding_target);
+        let _ = apply_pending_bind(&mut guard, HotKey(key_code));
+    }
+
+    emit_state(&app, &shared.inner);
+    get_state(shared)
+}
+
 fn main() {
     if !is_user_elevated() {
         relaunch_as_admin();
@@ -283,7 +314,8 @@ fn main() {
             get_state,
             set_cps,
             set_running,
-            begin_key_bind
+            begin_key_bind,
+            set_key_bind
         ])
         .setup(|app| {
             let app_handle = app.handle();

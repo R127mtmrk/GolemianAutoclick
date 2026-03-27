@@ -20,6 +20,8 @@ const els = {
   stopBtn: document.getElementById("stopBtn")
 };
 
+let pendingBindTarget = null;
+
 function setPendingButtonState(button, isPending) {
   button.classList.toggle("binding", isPending);
   button.textContent = isPending ? "Press any key..." : "Change";
@@ -28,6 +30,7 @@ function setPendingButtonState(button, isPending) {
 function refreshView(state) {
   const pendingToggle = state.pending_bind === "toggle";
   const pendingInventory = state.pending_bind === "inventory";
+  pendingBindTarget = state.pending_bind ?? null;
   const delayMs = Math.max(1, Math.round(1000 / Math.max(1, Number(state.cps))));
 
   els.cpsInput.value = state.cps;
@@ -77,6 +80,38 @@ async function loadState() {
   refreshView(state);
 }
 
+function getBrowserKeyCode(event) {
+  const keyCode = Number(event.keyCode || event.which || 0);
+  return Number.isFinite(keyCode) ? keyCode : 0;
+}
+
+window.addEventListener("keydown", async (event) => {
+  if (!pendingBindTarget || event.repeat) {
+    return;
+  }
+
+  const keyCode = getBrowserKeyCode(event);
+  if (!keyCode) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  try {
+    const state = await invoke("set_key_bind", {
+      target: pendingBindTarget,
+      keyCode
+    });
+    refreshView(state);
+  } catch (error) {
+    if (els.noticeText) {
+      els.noticeText.textContent = `Error: ${String(error)}`;
+    }
+    pendingBindTarget = null;
+  }
+}, true);
+
 els.cpsInput.addEventListener("input", async () => {
   const cps = Number(els.cpsInput.value);
   els.cpsValue.textContent = String(cps);
@@ -95,13 +130,25 @@ els.stopBtn.addEventListener("click", async () => {
 });
 
 els.bindToggleBtn.addEventListener("click", async () => {
-  const state = await invoke("begin_key_bind", { target: "toggle" });
-  refreshView(state);
+  try {
+    const state = await invoke("begin_key_bind", { target: "toggle" });
+    refreshView(state);
+  } catch (error) {
+    if (els.noticeText) {
+      els.noticeText.textContent = `Error: ${String(error)}`;
+    }
+  }
 });
 
 els.bindInventoryBtn.addEventListener("click", async () => {
-  const state = await invoke("begin_key_bind", { target: "inventory" });
-  refreshView(state);
+  try {
+    const state = await invoke("begin_key_bind", { target: "inventory" });
+    refreshView(state);
+  } catch (error) {
+    if (els.noticeText) {
+      els.noticeText.textContent = `Error: ${String(error)}`;
+    }
+  }
 });
 
 listen("state-updated", (event) => {
