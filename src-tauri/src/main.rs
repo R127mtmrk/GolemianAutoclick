@@ -3,28 +3,35 @@
 mod app_logic;
 
 use app_logic::{
-    apply_pending_bind, default_notice, extract_relevant_key, handle_key_release, key_to_label,
-    set_notice, target_to_ui_label, to_ui_state, KeyBindingTarget, SharedState, UiState,
+    apply_pending_bind, default_notice, handle_key_release, key_to_label, set_notice,
+    target_to_ui_label, to_ui_state, HotKey, KeyBindingTarget, SharedState, UiState,
 };
-use rdev::{listen, EventType, Key};
+use core::mem::size_of;
 use std::env;
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
-use std::sync::{Arc, Mutex};
+use std::sync::mpsc;
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
 
 use tauri::Manager;
 use windows::core::PCWSTR;
+use windows::Win32::Foundation::{HINSTANCE, LPARAM, LRESULT, WPARAM};
+use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_0, INPUT_MOUSE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEINPUT,
 };
 use windows::Win32::UI::Shell::{IsUserAnAdmin, ShellExecuteW};
-use windows::Win32::UI::WindowsAndMessaging::SW_SHOW;
+use windows::Win32::UI::WindowsAndMessaging::{
+    CallNextHookEx, DispatchMessageW, GetMessageW, SetWindowsHookExW, TranslateMessage,
+    KBDLLHOOKSTRUCT, MSG, SW_SHOW, WH_KEYBOARD_LL, WM_KEYUP, WM_SYSKEYUP,
+};
 
 #[derive(Clone)]
 struct AppShared {
     inner: Arc<Mutex<SharedState>>,
+    click_notify: Arc<Condvar>,
 }
 
 impl AppShared {
@@ -34,12 +41,13 @@ impl AppShared {
                 cps: 13,
                 running: false,
                 inv_paused: false,
-                inventory_key: Key::KeyE,
-                toggle_key: Key::F4,
+                inventory_key: HotKey::KEY_E,
+                toggle_key: HotKey::F4,
                 pending_bind: None,
                 notice: default_notice(is_elevated),
                 is_elevated,
             })),
+            click_notify: Arc::new(Condvar::new()),
         }
     }
 }
@@ -107,10 +115,8 @@ fn relaunch_as_admin() {
         Ok(path) => path,
         Err(_) => return,
     };
-
     let operation = to_wide("runas");
     let file = to_wide(&exe.to_string_lossy());
-
     unsafe {
         let _ = ShellExecuteW(
             None,
@@ -121,6 +127,63 @@ fn relaunch_as_admin() {
             SW_SHOW,
         );
     }
+}
+
+// Sender global utilisé par le callback WH_KEYBOARD_LL.
+static GLOBAL_KEY_TX: OnceLock<Mutex<Option<mpsc::Sender<HotKey>>>> = OnceLock::new();
+
+unsafe extern "system" fn keyboard_proc_global(
+    code: i32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    if code >= 0 {
+        let w = wparam.0 as u32;
+        if w == WM_KEYUP || w == WM_SYSKEYUP {
+            let kb = &*(lparam.0 as *const KBDLLHOOKSTRUCT);
+            let vk = HotKey(kb.vkCode);
+            if let Some(store) = GLOBAL_KEY_TX.get() {
+                if let Ok(guard) = store.lock() {
+                    if let Some(tx) = guard.as_ref() {
+                        let _ = tx.send(vk);
+                    }
+                }
+            }
+        }
+    }
+    CallNextHookEx(None, code, wparam, lparam)
+}
+
+/// Installe un WH_KEYBOARD_LL pur — aucun hook souris.
+/// Le callback poste les VK codes dans `key_tx` et retourne immédiatement.
+fn install_keyboard_hook(key_tx: mpsc::Sender<HotKey>) {
+    thread::spawn(move || {
+        // Le hook vit dans un thread avec message loop Windows.
+        let store = GLOBAL_KEY_TX.get_or_init(|| Mutex::new(None));
+        if let Ok(mut guard) = store.lock() {
+            *guard = Some(key_tx);
+        }
+
+        let _hook = unsafe {
+            let hmod = GetModuleHandleW(None).unwrap_or_default();
+            SetWindowsHookExW(
+                WH_KEYBOARD_LL,
+                Some(keyboard_proc_global),
+                Some(HINSTANCE(hmod.0)),
+                0,
+            )
+            .expect("Failed to install keyboard hook")
+        };
+
+        // Message loop nécessaire pour que le hook reçoive les événements.
+        unsafe {
+            let mut msg = MSG::default();
+            while GetMessageW(&mut msg, None, 0, 0).as_bool() {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+    });
 }
 
 #[tauri::command]
@@ -170,6 +233,9 @@ fn set_running(
             set_notice(&mut guard, "Autoclick disabled from UI.");
         }
     }
+    if running {
+        shared.click_notify.notify_one();
+    }
     emit_state(&app, &shared.inner);
     get_state(shared)
 }
@@ -190,7 +256,6 @@ fn begin_key_bind(
             "toggle" => KeyBindingTarget::Toggle,
             _ => return Err("Invalid bind target".to_string()),
         };
-
         guard.pending_bind = Some(binding_target);
         set_notice(
             &mut guard,
@@ -222,59 +287,55 @@ fn main() {
         ])
         .setup(|app| {
             let app_handle = app.handle();
-            let state_for_click = app.state::<AppShared>().inner.clone();
             let state_for_hotkeys = app.state::<AppShared>().inner.clone();
 
+            // Thread autoclick — dormant via Condvar jusqu'à running == true.
             {
+                let click_state = app.state::<AppShared>().inner.clone();
+                let click_notify = app.state::<AppShared>().click_notify.clone();
                 thread::spawn(move || loop {
-                    let (running, cps) = {
-                        if let Ok(guard) = state_for_click.lock() {
-                            (guard.running, guard.cps)
-                        } else {
-                            (false, 10)
-                        }
+                    let cps = {
+                        let guard = click_notify
+                            .wait_while(click_state.lock().unwrap(), |s| !s.running)
+                            .unwrap();
+                        guard.cps
                     };
-
-                    if running {
+                    let still_running =
+                        click_state.lock().map(|g| g.running).unwrap_or(false);
+                    if still_running {
                         click_once(cps);
-                    } else {
-                        thread::sleep(Duration::from_millis(10));
                     }
                 });
             }
 
+            // Channel clavier : hook → sender (immédiat) → thread consommateur.
+            let (key_tx, key_rx) = mpsc::channel::<HotKey>();
+
+            // Thread consommateur des touches.
             {
-                let app_handle_for_hotkeys = app_handle.clone();
+                let process_state = state_for_hotkeys.clone();
+                let process_handle = app_handle.clone();
+                let process_notify = app.state::<AppShared>().click_notify.clone();
                 thread::spawn(move || {
-                    let listener_state = state_for_hotkeys.clone();
-                    let listener_handle = app_handle_for_hotkeys.clone();
-                    let listen_result = listen(move |event| {
-                        let Some(key) = extract_relevant_key(event.event_type) else {
-                            return;
-                        };
-
+                    for key in key_rx {
                         let mut should_emit = false;
-
-                        if let Ok(mut guard) = listener_state.lock() {
+                        let mut started_running = false;
+                        if let Ok(mut guard) = process_state.lock() {
                             should_emit = handle_key_release(&mut guard, key);
+                            started_running = guard.running;
                         }
-
                         if should_emit {
-                            emit_state(&listener_handle, &listener_state);
+                            if started_running {
+                                process_notify.notify_one();
+                            }
+                            emit_state(&process_handle, &process_state);
                         }
-                    });
-
-                    if let Err(error) = listen_result {
-                        if let Ok(mut guard) = state_for_hotkeys.lock() {
-                            set_notice(
-                                &mut guard,
-                                format!("Global keyboard listener failed: {error:?}"),
-                            );
-                        }
-                        emit_state(&app_handle_for_hotkeys, &state_for_hotkeys);
                     }
                 });
             }
+
+            // Hook WH_KEYBOARD_LL pur — zéro hook souris.
+            install_keyboard_hook(key_tx);
 
             emit_state(&app_handle, &app.state::<AppShared>().inner);
             Ok(())
@@ -294,8 +355,8 @@ mod tests {
             cps: 13,
             running: false,
             inv_paused: false,
-            inventory_key: Key::KeyE,
-            toggle_key: Key::F4,
+            inventory_key: HotKey::KEY_E,
+            toggle_key: HotKey::F4,
             pending_bind: None,
             notice: String::new(),
             is_elevated: true,
@@ -306,54 +367,44 @@ mod tests {
     fn escape_cancels_pending_bind() {
         let mut state = sample_state();
         state.pending_bind = Some(KeyBindingTarget::Toggle);
-
-        assert!(apply_pending_bind(&mut state, Key::Escape));
+        assert!(apply_pending_bind(&mut state, HotKey::ESCAPE));
         assert_eq!(state.pending_bind, None);
-        assert_eq!(state.toggle_key, Key::F4);
+        assert_eq!(state.toggle_key, HotKey::F4);
     }
 
     #[test]
     fn duplicate_binding_is_rejected() {
         let mut state = sample_state();
         state.pending_bind = Some(KeyBindingTarget::Toggle);
-
-        assert!(apply_pending_bind(&mut state, Key::KeyE));
+        assert!(apply_pending_bind(&mut state, HotKey::KEY_E));
         assert_eq!(state.pending_bind, Some(KeyBindingTarget::Toggle));
-        assert_eq!(state.toggle_key, Key::F4);
+        assert_eq!(state.toggle_key, HotKey::F4);
     }
 
     #[test]
     fn inventory_pause_toggles_cleanly() {
         let mut state = sample_state();
         state.running = true;
-
-        assert!(handle_key_release(&mut state, Key::KeyE));
+        assert!(handle_key_release(&mut state, HotKey::KEY_E));
         assert!(!state.running);
         assert!(state.inv_paused);
-
-        assert!(handle_key_release(&mut state, Key::KeyE));
+        assert!(handle_key_release(&mut state, HotKey::KEY_E));
         assert!(state.running);
         assert!(!state.inv_paused);
     }
 
     #[test]
-    fn mouse_move_event_is_ignored() {
-        assert_eq!(
-            extract_relevant_key(EventType::MouseMove { x: 42.0, y: 24.0 }),
-            None
-        );
+    fn key_label_e_is_readable() {
+        assert_eq!(key_to_label(HotKey::KEY_E), "E");
     }
 
     #[test]
-    fn only_key_release_events_are_used() {
-        assert_eq!(extract_relevant_key(EventType::KeyPress(Key::F4)), None);
-        assert_eq!(extract_relevant_key(EventType::KeyRelease(Key::F4)), Some(Key::F4));
+    fn key_label_space_is_readable() {
+        assert_eq!(key_to_label(HotKey(0x20)), "Space");
     }
 
     #[test]
-    fn key_labels_are_human_readable() {
-        assert_eq!(key_to_label(Key::KeyE), "E");
-        assert_eq!(key_to_label(Key::Space), "Space");
-        assert_eq!(key_to_label(Key::F4), "F4");
+    fn key_label_f4_is_readable() {
+        assert_eq!(key_to_label(HotKey::F4), "F4");
     }
 }

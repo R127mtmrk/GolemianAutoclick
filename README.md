@@ -13,7 +13,7 @@ Projet auto-clicker sous **Tauri** avec:
 - Vite + JavaScript
 
 ## Structure
-- `src-tauri/src/main.rs`: logique autoclick + commandes Tauri + hotkeys globales
+- `src-tauri/src/main.rs`&`src-tauri/src/app_logic.rs`: logique autoclick + commandes Tauri + hotkeys globales
 - `src-tauri/tauri.conf.json`: config Tauri
 - `src/main.js`: logique UI (`invoke` / événements)
 - `src/styles.css`: interface moderne
