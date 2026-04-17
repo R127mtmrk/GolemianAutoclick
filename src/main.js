@@ -17,7 +17,7 @@ const els = {
   noticeText: document.getElementById("noticeText"),
   privilegeBadge: document.getElementById("privilegeBadge"),
   startBtn: document.getElementById("startBtn"),
-  stopBtn: document.getElementById("stopBtn")
+  stopBtn: document.getElementById("stopBtn"),
 };
 
 let pendingBindTarget = null;
