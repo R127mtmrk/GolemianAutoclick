@@ -49,8 +49,6 @@ pub(crate) fn default_notice(is_elevated: bool) -> String {
             .to_string()
     }
 }
-
-/// Convertit un Virtual Key code en label lisible.
 pub(crate) fn key_to_label(key: HotKey) -> String {
     match key.0 {
         0x08 => "Backspace", 0x09 => "Tab", 0x0D => "Enter", 0x10 => "Shift", 0x11 => "Ctrl", 0x12 => "Alt", 0x1B => "Escape",
@@ -64,8 +62,7 @@ pub(crate) fn key_to_label(key: HotKey) -> String {
         0x4B => "K", 0x4C => "L", 0x4D => "M", 0x4E => "N", 0x4F => "O",
         0x50 => "P", 0x51 => "Q", 0x52 => "R", 0x53 => "S", 0x54 => "T",
         0x55 => "U", 0x56 => "V", 0x57 => "W", 0x58 => "X", 0x59 => "Y",
-        0x5A => "Z",
-        0x5B => "Left Win", 0x5C => "Right Win",
+        0x5A => "Z", 0x5B => "Left Win", 0x5C => "Right Win",
         0x60 => "Numpad 0", 0x61 => "Numpad 1", 0x62 => "Numpad 2", 0x63 => "Numpad 3",
         0x64 => "Numpad 4", 0x65 => "Numpad 5", 0x66 => "Numpad 6", 0x67 => "Numpad 7",
         0x68 => "Numpad 8", 0x69 => "Numpad 9", 0x6A => "Numpad *", 0x6B => "Numpad +",
@@ -73,10 +70,8 @@ pub(crate) fn key_to_label(key: HotKey) -> String {
         0x70 => "F1",  0x71 => "F2",  0x72 => "F3",  0x73 => "F4",
         0x74 => "F5",  0x75 => "F6",  0x76 => "F7",  0x77 => "F8",
         0x78 => "F9",  0x79 => "F10", 0x7A => "F11", 0x7B => "F12",
-        0x90 => "Num Lock", 0x91 => "Scroll Lock",
-        0xA0 => "Left Shift", 0xA1 => "Right Shift",
-        0xA2 => "Left Ctrl", 0xA3 => "Right Ctrl",
-        0xA4 => "Alt", 0xA5 => "Alt Gr",
+        0x90 => "Num Lock", 0x91 => "Scroll Lock", 0xA0 => "Left Shift", 0xA1 => "Right Shift",
+        0xA2 => "Left Ctrl", 0xA3 => "Right Ctrl", 0xA4 => "Alt", 0xA5 => "Alt Gr",
         0xBA => ";", 0xBB => "=", 0xBC => ",", 0xBD => "-", 0xBE => ".",
         0xBF => "/", 0xC0 => "`", 0xDB => "[", 0xDC => "\\", 0xDD => "]", 0xDE => "'",
         0x13 => "Pause", 0x14 => "Caps Lock",
